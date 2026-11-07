@@ -22,16 +22,19 @@ _ESCvar     ESCvar;
 /* Private variables */
 static volatile int watchdog;
 
+/* Without CoE mappings the application may provide its own process data
+ * buffers; the weak definitions are used when it does not.
+ */
 #if MAX_MAPPINGS_SM2 > 0
 static uint8_t rxpdo[MAX_RXPDO_SIZE] __attribute__((aligned (8)));
 #else
-extern uint8_t rxpdo[];
+uint8_t rxpdo[MAX_RXPDO_SIZE] __attribute__((weak, aligned (8)));
 #endif
 
 #if MAX_MAPPINGS_SM3 > 0
 static uint8_t txpdo[MAX_TXPDO_SIZE] __attribute__((aligned (8)));
 #else
-extern uint8_t txpdo[];
+uint8_t txpdo[MAX_TXPDO_SIZE] __attribute__((weak, aligned (8)));
 #endif
 
 /** Function to pre-qualify the incoming SDO download.
