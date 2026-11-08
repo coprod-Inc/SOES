@@ -47,29 +47,35 @@ static _FOEvar FOEvar;
  * @param[in] num_chars = Length of filename
  * @param[in] pass      = Numeric variable of password
  * @param[in] op        = Request op-code
- * @return 0= if we succeed, FOE_ERR_NOTFOUND something wrong with filename or
- * password
+ * @return 0= if we succeed, FOE_ERR_NOTFOUND something wrong with filename,
+ * FOE_ERR_NORIGHTS wrong password or file not readable, FOE_ERR_PROGERROR
+ * readable file larger than fbuffer
  */
 static uint32_t FOE_fopen (char *name, uint8_t num_chars, uint32_t pass, uint8_t op)
 {
    uint32_t i;
 
-   /* Unpack the file name into characters we can look at. */
+   /* A name longer than FOE_FN_MAX cannot match any configured file. */
    if (num_chars > FOE_FN_MAX)
    {
-      num_chars = FOE_FN_MAX;
+      return FOE_ERR_NOTFOUND;
    }
 
-   for (i = 0; i < num_chars; i++)
+   /* Unpack the file name into characters we can look at, stopping at a NUL
+    * terminator if the master sent one.
+    */
+   for (i = 0; (i < num_chars) && (name[i] != '\0'); i++)
    {
       foe_file_name[i] = name[i];
    }
    foe_file_name[i] = '\0';
 
-   /* Figure out what file they're talking about. */
+   /* Figure out what file they're talking about. The match must be exact:
+    * a prefix (or an empty name) must not select a configured file.
+    */
    for (i = 0; i < foe_cfg->n_files; i++)
    {
-      if (0 == strncmp (foe_file_name, foe_cfg->files[i].name, num_chars))
+      if (0 == strcmp (foe_file_name, foe_cfg->files[i].name))
       {
          if (pass != foe_cfg->files[i].filepass)
          {
@@ -81,6 +87,19 @@ static uint32_t FOE_fopen (char *name, uint8_t num_chars, uint32_t pass, uint8_t
              (ESCvar.ALstatus != ESCboot))
          {
             return FOE_ERR_NOTINBOOTSTRAP;
+         }
+
+         /* RRQ data is copied out of fbuffer up to max_data. */
+         if (op == FOE_OP_RRQ)
+         {
+            if (!foe_cfg->files[i].read_allowed)
+            {
+               return FOE_ERR_NORIGHTS;
+            }
+            if (foe_cfg->files[i].max_data > foe_cfg->fbuffer_size)
+            {
+               return FOE_ERR_PROGERROR;
+            }
          }
 
          foe_file = &foe_cfg->files[i];

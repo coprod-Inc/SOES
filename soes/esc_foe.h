@@ -33,8 +33,12 @@ struct foe_file_cfg
    uint32_t       filepass;
    /** This file can be written only in BOOT state. Intended for FW files */
    uint8_t        write_only_in_boot;
+   /** The master may read this file (RRQ). Reads are served from fbuffer,
+    * so leave this 0 for write-only files such as firmware images.
+    */
+   uint8_t        read_allowed;
    /** for feature use */
-   uint32_t       padding:24;
+   uint32_t       padding:16;
    /** Pointer to application foe write function */
    uint32_t       (*write_function) (foe_file_cfg_t * self, uint8_t * data, size_t length);
 };
@@ -45,6 +49,10 @@ typedef struct foe_cfg
    uint8_t * fbuffer;
    /** Buffer size before we flush to destination */
    uint32_t  buffer_size;
+   /** Total capacity of fbuffer. An RRQ is refused if the file's max_data
+    * exceeds it.
+    */
+   uint32_t  fbuffer_size;
    /** Number of files used in firmware update */
    uint32_t  n_files;
    /** Pointer to files configured to be used by FoE */
