@@ -201,7 +201,7 @@ static uint32_t FOE_fwrite (uint8_t *data, uint32_t length)
 /** Function handling the final FOE_fwrite when we close up regardless
  * if we have filled the buffers or not.
  *
- * @return Number of copied bytes on success, 0= if failed.
+ * @return 0= on success, non-zero if the write function failed.
  */
 static uint32_t FOE_fclose (void)
 {
@@ -486,10 +486,17 @@ static void FOE_data ()
    }
    else if (data_len == 0)
    {
-      DPRINT("FOE_data completed\n");
-      FOE_fclose ();
-      res = FOE_send_ack ();
-      FOE_init ();
+      if (FOE_fclose ())
+      {
+         DPRINT("FOE_fclose failed to write extra buffer\n");
+         FOE_abort (FOE_ERR_PROGERROR);
+      }
+      else
+      {
+         DPRINT("FOE_data completed\n");
+         res = FOE_send_ack ();
+         FOE_init ();
+      }
    }
    else if (FOEvar.fposition + data_len > FOEvar.fend)
    {
