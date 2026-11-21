@@ -39,7 +39,11 @@ struct foe_file_cfg
    uint8_t        read_allowed;
    /** for feature use */
    uint32_t       padding:16;
-   /** Pointer to application foe write function */
+   /** Pointer to application foe write function. Returns 0 on success. On
+    * failure, an FoE error code (0x8000-0x80FF, FOE_ERR_*) aborts the transfer
+    * with that code; any other non-zero value aborts it with
+    * FOE_ERR_PROGERROR.
+    */
    uint32_t       (*write_function) (foe_file_cfg_t * self, uint8_t * data, size_t length);
 };
 

@@ -160,10 +160,11 @@ static uint32_t FOE_fread (uint8_t * data, uint32_t maxlength)
  *
  * @param[in] data   = Pointer to buffer
  * @param[in] length = Length of data to read
+ * @param[out] failed_out = 0, or the write function's return value if it failed
 
  * @return Number of copied bytes.
  */
-static uint32_t FOE_fwrite (uint8_t *data, uint32_t length)
+static uint32_t FOE_fwrite (uint8_t *data, uint32_t length, uint32_t *failed_out)
 {
     uint32_t ncopied = 0;
     uint32_t failed = 0;
@@ -192,6 +193,7 @@ static uint32_t FOE_fwrite (uint8_t *data, uint32_t length)
     }
 
     foe_file->total_size += ncopied;
+    *failed_out = failed;
 
     DPRINT("FOE_fwrite END with : %"PRIu32"\n",ncopied);
     return ncopied;
@@ -201,7 +203,7 @@ static uint32_t FOE_fwrite (uint8_t *data, uint32_t length)
 /** Function handling the final FOE_fwrite when we close up regardless
  * if we have filled the buffers or not.
  *
- * @return 0= on success, non-zero if the write function failed.
+ * @return 0= on success, otherwise the write function's non-zero return value.
  */
 static uint32_t FOE_fclose (void)
 {
@@ -214,6 +216,24 @@ static uint32_t FOE_fclose (void)
    FOEvar.fbufposition = 0;
 
    return failed;
+}
+
+/** Map a failed write function's return value to the FoE error code the
+ * transfer is aborted with. A write function may return an FoE error code
+ * (0x8000-0x80FF), for example FOE_ERR_INVALID_FIRMWARE for a firmware file
+ * built for other hardware, and the master receives that code. Any other
+ * value only says that the write failed and gives FOE_ERR_PROGERROR.
+ *
+ * @param[in] failed = the write function's return value
+ * @return FoE error code to abort the transfer with.
+ */
+static uint32_t FOE_write_error (uint32_t failed)
+{
+   if ((failed & 0xFFFFFF00u) == FOE_ERR_NOTDEFINED)
+   {
+      return failed;
+   }
+   return FOE_ERR_PROGERROR;
 }
 
 /** Initialize by clearing all current status variables.
@@ -466,6 +486,7 @@ static void FOE_data ()
    uint32_t packet;
    uint32_t data_len, ncopied;
    uint32_t res;
+   uint32_t failed;
 
    if(FOEvar.foestate != FOE_WAIT_FOR_DATA)
    {
@@ -486,10 +507,11 @@ static void FOE_data ()
    }
    else if (data_len == 0)
    {
-      if (FOE_fclose ())
+      failed = FOE_fclose ();
+      if (failed)
       {
          DPRINT("FOE_fclose failed to write extra buffer\n");
-         FOE_abort (FOE_ERR_PROGERROR);
+         FOE_abort (FOE_write_error (failed));
       }
       else
       {
@@ -505,20 +527,17 @@ static void FOE_data ()
    }
    else
    {
-      ncopied = FOE_fwrite (foembx->data, data_len);
-      if (!ncopied)
+      ncopied = FOE_fwrite (foembx->data, data_len, &failed);
+      if (ncopied != data_len)
       {
-         DPRINT("FOE_data no copied\n");
-         FOE_abort (FOE_ERR_PROGERROR);
+         /* The write function failed: abort with its code. Also covers
+          * ncopied == 0. */
+         DPRINT("FOE_data only %"PRIu32" of %"PRIu32" copied\n",ncopied, data_len);
+         FOE_abort (FOE_write_error (failed));
       }
       else if (data_len == ESC_FOE_DATA_SIZE)
       {
          DPRINT("FOE_data data_len == FOE_DATA_SIZE\n");
-         if (ncopied != data_len)
-         {
-            DPRINT("FOE_data only %"PRIu32" of %"PRIu32" copied\n",ncopied, data_len);
-            FOE_abort (FOE_ERR_PROGERROR);
-         }
          res = FOE_send_ack ();
          if (res)
          {
@@ -527,10 +546,11 @@ static void FOE_data ()
       }
       else
       {
-         if ((ncopied != data_len) || FOE_fclose ())
+         failed = FOE_fclose ();
+         if (failed)
          {
             DPRINT("FOE_fclose failed to write extra buffer\n");
-            FOE_abort (FOE_ERR_PROGERROR);
+            FOE_abort (FOE_write_error (failed));
          }
          else
          {

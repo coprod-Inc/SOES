@@ -272,6 +272,9 @@
 #define FOE_ERR_NORIGHTS               0x800A
 #define FOE_ERR_PROGERROR              0x800B
 #define FOE_ERR_CHECKSUM               0x800C
+/* Firmware file not for this hardware. Not in ETG.1000.6; same code as
+ * ECAT_FOE_ERRCODE_INVALID_FIRMWARE in Beckhoff's slave stack code (SSC). */
+#define FOE_ERR_INVALID_FIRMWARE       0x800D
 
 #define FOE_OP_RRQ                     1
 #define FOE_OP_WRQ                     2
